@@ -1,0 +1,17 @@
+{
+  "name": "fetchers-configuration",
+  "version": "0.0.1",
+  "description": "Fetchers configuration",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Warning: no test specified\" && exit 0"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "app-root-path": "^2.2.1",
+    "aws-sdk": "^2.535.0",
+    "nconf": "^0.10.0"
+  },
+  "private": true
+}

@@ -1,0 +1,132 @@
+#!/bin/bash
+
+NODE_VERSION="10.16.3"
+DOCKER_COMPOSE_VERSION="1.23.1"
+TAB="#############################"
+
+_brew()
+{
+    echo "$TAB 1.0 Installing homebrew $TAB"
+    if [ "$(uname)" == "Darwin" ]; then
+        if brew --version > /dev/null; then
+            brew update
+        else
+            /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+        fi
+        echo "### homebrew is installed"
+    fi
+}
+
+_yarn()
+{
+    echo "$TAB 1.1 Installing yarn $TAB"
+    if yarn --version > /dev/null; then
+        brew upgrade yarn
+    else
+        brew install yarn --without-node
+    fi
+    echo "### yarn $(yarn --version) is installed."
+}
+
+_nvm()
+{
+    echo "$TAB 1.2 Installing nvm $TAB"
+    . ~/.nvm/nvm.sh
+    if [[ $(command -v nvm) != "nvm" ]]; then
+        curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    fi
+    echo "### nvm $(nvm --version) is installed."
+}
+
+_node()
+{
+    echo "$TAB 1.3 Installing node v$NODE_VERSION $TAB"
+    if [[ $(node --version) != "v${NODE_VERSION}" ]]; then
+        nvm install v$NODE_VERSION
+    fi
+    echo "### node $(node --version) is installed" 
+}
+
+_docker()
+{
+    echo "$TAB 1.4 Installing docker $TAB"
+    if docker --version > /dev/null; then
+        echo "### $(docker --version) is installed"
+    else
+        if [ "$(uname)" == "Darwin" ]; then
+            wget https://download.docker.com/mac/edge/Docker.dmg -P ~/Downloads
+            open ~/Downloads/Docker.dmg
+            echo "### $(docker --version) is installed"
+        elif [ "$(uname)" == "Linux" ]; then
+            curl -fsSL get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            echo "### $(docker --version) is installed"
+        else
+            echo "Download and install Docker Edge: https://docs.docker.com/engine/installation/"
+            exit 1
+        fi
+    fi
+}
+
+_docker-compose()
+{
+    echo "$TAB 1.6 Installing docker-compose $TAB"
+    if docker-compose --version > /dev/null; then
+        echo "### $(docker-compose --version) is installed"
+    else
+        if [ "$(uname)" == "Darwin" ]; then
+            echo "Please run Docker for Mac, which will install Docker Compose."
+            echo "Then re-run this script."
+            exit 1
+        elif [ "$(uname)" == "Linux" ]; then
+            sudo curl -L https://github.com/docker/compose/releases/download/$DOCKER_COMPOSE_VERSION/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo "### $(docker-compose --version) is installed"
+        else
+            echo "Download and install Docker Compose: https://docs.docker.com/compose/install/"
+            exit 1
+        fi
+    fi
+}
+
+_sam-cli()
+{
+    echo "$TAB 1.7 Installing AWS SAM CLI $TAB"
+    if sam --version > /dev/null; then
+        echo "### $(sam --version) is installed"
+    else
+        echo "AWS SAM CLI is not installed. Installation instruction can be found at: https://docs.aws.amazon.com/lambda/latest/dg/sam-cli-requirements.html"
+        exit 1
+    fi
+}
+
+_env()
+{
+    echo "$TAB 1.8 Exporting environment variables $TAB"
+
+    if [ $REQ_VAR ]; then
+        echo "### You can find required variables in ./env/vars"
+        exit 1
+    fi
+    echo "### All required variables are set"
+}
+
+echo "$TAB 1 Installing environment $TAB"
+_brew
+_yarn
+_nvm
+_node
+_docker
+_docker-compose
+_sam-cli
+# TODO: enable later if necessary or remove if not
+#_env
+
+echo "$TAB 2 Building project $TAB"
+yarn build
+
+echo "$TAB 3 Running tests $TAB"
+yarn test

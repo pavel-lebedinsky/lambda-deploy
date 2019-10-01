@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "preparing packages for audit.."
+
+rm -rf packages_audit
+mkdir packages_audit
+
+rsync -arvhW --progress --exclude node_modules --exclude test --exclude yarn.lock packages/ packages_audit/
+
+node bin/audit.js

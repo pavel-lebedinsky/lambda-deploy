@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -e
+
+echo "preparing deployable packages for isolated installs.."
+
+rm -rf packages_deploy
+mkdir packages_deploy
+
+rsync -arvhW --progress --exclude node_modules --exclude test --exclude yarn.lock packages/ packages_deploy/
+
+# turn lerna dependencies "^0.0.1" into yarn-compatible "file:../" urls
+node bin/build-deploy-unlerna.js

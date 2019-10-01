@@ -1,0 +1,4 @@
+node_modules
+packages_audit
+packages_deploy
+*.log
