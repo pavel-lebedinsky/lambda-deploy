@@ -8,7 +8,6 @@ pipeline {
       // fixme: this function doesn't work in declaritive pipeline
       // (JENKINS-55987) will need to use alternative method to detect
       // tags. Lowest priority. The intent for this stage was analytics.
-
       when { buildingTag() }
       steps {
         echo "🏷 Git tags pushed."
@@ -19,15 +18,19 @@ pipeline {
     stage("Discover Targets") {
       when { environment name: 'FETCHER_NAME', value: '' }  // and add  noGitTags() condition
       steps {
+        echo "TODO: discover targets"
         // Capture list of changed packages (lerna changed)
         // If BRANCH_NAME == 'prod', version repo (lerna version)
         // For each changed package...
+        /*
         build job: "${JOB_NAME}", parameters: [
           string(name: 'FETCHER_NAME', value: "foo")  // "foo" should be dynamic
           ]
+        */
       }
     }
 
+    /*
     stage("Deploy Fetcher") {
       when {
         not { environment name: 'FETCHER_NAME', value: '' }
@@ -44,5 +47,6 @@ pipeline {
         // Run deployment (lerna run deploy --scope=${FETCHER_NAME})
       }
     }
+    */
   }
 }
