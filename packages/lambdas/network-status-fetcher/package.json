@@ -1,6 +1,6 @@
 {
   "name": "network-status-fetcher-lambda",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "fetches network status data",
   "main": "index.js",
   "scripts": {
@@ -15,6 +15,6 @@
     "awsParameter": "networkStatusFetcherLambdaTag"
   },
   "dependencies": {
-    "fetchers-configuration": "^0.0.1"
+    "fetchers-configuration": "^0.0.2"
   }
 }
