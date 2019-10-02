@@ -3,7 +3,7 @@ pipeline {
   tools {nodejs "nodejs-10"}
   parameters {
     choice(name: 'ACTION', choices: ['test', 'deploy', 'force deploy'], description: 'Deployment strategy')
-    string(name: 'DEPLOYABLE_NAMES', defaultValue:'network-status-fetcher, configuration', description: 'Names of units to deploy.')
+    string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Names of units to deploy.')
     string(name: 'TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
@@ -38,7 +38,7 @@ pipeline {
       }
       steps {
         sh "git fetch --tags"
-        getChanges("${DEPLOYABLE_NAMES}")
+        getChanges("${ACTION}", "${DEPLOYABLE_NAMES}")
   
         // Capture list of changed packages (lerna changed)
         // If BRANCH_NAME == 'prod', version repo (lerna version)
@@ -72,23 +72,59 @@ pipeline {
   }
 }
 
-def getChanges(deployables) {  
-  echo "Calling getChanges()...  with param ${deployables}"
-  def changesFileName = "changes-${currentBuild.id}.json"
-  try {
-    sh "lerna changed -a --ndjson > ${changesFileName}"
-    def output=readFile(changesFileName).trim().split('\n')
-    echo "output=${output}"
-  } catch(Exception e) {
-    echo "No changes detected."
+import groovy.json.JsonSlurper
+
+def getChanges(action, deployables = "") {  
+  echo "Detecting packages to deploy for '${action}' action"
+  if (deployables) {
+    echo "Deployment requested for the following packages: '${deployables}'"
   }
-  
-  echo "output=${getPackagesPaths()}"
+  def requestedPackagesNames = deployables.split(',').collect {it.trim()} as Set
+
+  def packages = getPackages();
+  if (action == "force deploy") {
+    if (requestedPackagesNames.isEmpty()) {
+      runDeployment(packages)
+    } else {
+      runDeployment(packages.findAll {it.key in requestedPackagesNames })
+    }
+  } else {
+    def changesFileName = "changes-${currentBuild.id}.json"
+    def changedPackagesPaths = [] as Set;
+    try {
+      sh "lerna changed -a -p > ${changesFileName}"
+      changedPackagesPaths = readFile(changesFileName).trim().split('\n') as Set
+    } catch(Exception e) {
+      echo "No changes detected."
+    }
+
+    if (requestedPackagesNames.isEmpty()) {
+      runDeployment(packages.findAll {it.value in changedPackagesPaths })
+    } else {
+      runDeployment(packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths})
+    }
+  }
 }
 
-def getPackagesPaths() {
+def getPackages() {
   echo "Calling getPackagesPaths()..."
   def packagesFileName = "packages-${currentBuild.id}.log"
   sh "lerna exec -- pwd > ${packagesFileName}"
-  return readFile(packagesFileName).trim().split('\n');
+  def paths = readFile(packagesFileName).trim().split('\n');
+  return paths.collectEntries {
+    [(it.split("/").last()) : it]
+  }
 }
+
+def getPackageDeploymentConfig(packagePath) {
+  def packageJson = readFile("${packagePath}/package.json");
+  def jsonSlurper = new JsonSlurper()
+  def packageObj = jsonSlurper.parseText(packageJson);
+  return packageObj.deploy
+}
+
+def runDeployment(packages) {
+  echo "running deployment..."
+  echo "${packages}"
+}
+
