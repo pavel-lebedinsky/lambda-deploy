@@ -1,0 +1,20 @@
+{
+  "name": "bandwidth-status-fetcher-lambda",
+  "version": "0.0.0",
+  "description": "fetches bandwidth status data",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Warning: no test specified\" && exit 0"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "deploy": {
+    "serviceName": "bandwidth-status-fetcher-lambda",
+    "type": "lambda",
+    "awsParameter": "bandwidthStatusFetcherLambdaTag"
+  },
+  "dependencies": {
+    "fetchers-configuration": "^0.0.2"
+  }
+}
