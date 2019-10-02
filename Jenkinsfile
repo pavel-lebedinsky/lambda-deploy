@@ -3,7 +3,7 @@ pipeline {
   tools {nodejs "nodejs-10"}
   parameters {
     choice(name: 'ACTION', choices: ['test', 'deploy', 'force deploy'], description: 'Deployment strategy')
-    string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Names of units to deploy.')
+    string(name: 'DEPLOYABLE_NAMES', defaultValue:'network-status-fetcher, configuration', description: 'Names of units to deploy.')
     string(name: 'TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
@@ -38,17 +38,8 @@ pipeline {
       }
       steps {
         sh "git fetch --tags"
-        script {
-          try {
-            sh "lerna changed -a --ndjson > changed.json"
-          } catch(Exception e) {
-            echo "No changes detected."
-          }
-        }
-        
-        echo "Changes detected to the following packages: "  
-        sh "cat changed.json"  
-          
+        getChanges("${DEPLOYABLE_NAMES}")
+  
         // Capture list of changed packages (lerna changed)
         // If BRANCH_NAME == 'prod', version repo (lerna version)
         // For each changed package...
@@ -81,3 +72,23 @@ pipeline {
   }
 }
 
+def getChanges(deployables) {  
+  echo "Calling getChanges()...  with param ${deployables}"
+  def changesFileName = "changes-${currentBuild.id}.json"
+  try {
+    sh "lerna changed -a --ndjson > ${changesFileName}"
+    def output=readFile(changesFileName).trim().split('\n')
+    echo "output=${output}"
+  } catch(Exception e) {
+    echo "No changes detected."
+  }
+  
+  echo "output=${getPackagesPaths()}"
+}
+
+def getPackagesPaths() {
+  echo "Calling getPackagesPaths()..."
+  def packagesFileName = "packages-${currentBuild.id}.log"
+  sh "lerna exec -- pwd > ${packagesFileName}"
+  return readFile(packagesFileName).trim().split('\n');
+}
