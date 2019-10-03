@@ -136,5 +136,5 @@ def performDeployment() {
   DEPLOYABLE_VERSION=packageJson.version
   currentBuild.displayName = "#${packageJson.deploy.serviceName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
   sh "lerna run test --scope=${packageJson.name}"
-  sh "lerna run deploy --scope=${packageJson.name}
+  sh "lerna run deploy --scope=${packageJson.name}"
 }
