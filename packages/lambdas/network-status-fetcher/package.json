@@ -1,6 +1,6 @@
 {
   "name": "network-status-fetcher-lambda",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "fetches network status data",
   "main": "index.js",
   "scripts": {

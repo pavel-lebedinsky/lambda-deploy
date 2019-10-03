@@ -1,6 +1,6 @@
 {
   "name": "bandwidth-status-fetcher-lambda",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "fetches bandwidth status data",
   "main": "index.js",
   "scripts": {
