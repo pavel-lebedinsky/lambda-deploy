@@ -70,6 +70,7 @@ def discuverTargetsAndStartDeploy(action, deployables = "") {
       : packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths}
   }
 
+  sh "lerna version patch --amend --yes"
   runDeployment(packakesToDeploy)
 }
 
@@ -108,15 +109,18 @@ def runDeployment(packagesMap) {
 
   def jobs = [:]
   packagesMap.each {
-    jobs[it.key] = { 
-      build(
-        job: "${JOB_NAME}",
-        parameters: [
-          string(name: 'ACTION', value: 'deploy'),
-          string(name: 'DEPLOYABLE_NAMES', value: ''),
-          string(name: 'TO_DEPLOY', value: it.value)
-        ]
-      )  
+    def packageJson = getPackageJson(it.value)
+    if (packageJson.deploy) {
+      jobs[it.key] = {
+        build(
+          job: "${JOB_NAME}",
+          parameters: [
+            string(name: 'ACTION', value: 'deploy'),
+            string(name: 'DEPLOYABLE_NAMES', value: ''),
+            string(name: 'TO_DEPLOY', value: it.value)
+          ]
+        )  
+      } 
     }
   }
   jobs.failFast = true
@@ -130,5 +134,6 @@ def performDeployment() {
   }
   DEPLOYABLE_VERSION=packageJson.version
   currentBuild.displayName = "#${packageJson.deploy.serviceName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
-  // TODO: If Fetcher name doesn't actualy exist (runtime user error?) then fail build right away.
+  sh "lerna run test --scope=${packageJson.name}"
+  sh "lerna run deploy"
 }
