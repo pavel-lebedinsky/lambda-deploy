@@ -26,7 +26,10 @@ pipeline {
         }
       }
       steps {
+        sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
+        sh "git config --local user.name \"jenkins\""
         sh "git fetch --tags"
+        sh "git checkout master"
         sh "yarn build"
         discuverTargetsAndStartDeploy("${ACTION}", "${DEPLOYABLE_NAMES}")
       }
@@ -55,24 +58,24 @@ import groovy.json.JsonSlurper
 def discuverTargetsAndStartDeploy(action, deployables = "") {  
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
   
-  def packakesToDeploy = [];
+  def packagesToDeploy = [];
   def requestedPackagesNames = deployables.split(',').collect {it.trim()} as Set
   def packages = getAllPackages();
   
   if (action == "force deploy") {
     echo "Forced deployment detected..."
-    packakesToDeploy = requestedPackagesNames.empty
+    packagesToDeploy = requestedPackagesNames.empty
       ? packages
       : packages.findAll {it.key in requestedPackagesNames }
   } else {
     def changedPackagesPaths = getChangedPackages()
-    packakesToDeploy = requestedPackagesNames.empty 
+    packagesToDeploy = requestedPackagesNames.empty 
       ? packages.findAll {it.value in changedPackagesPaths }
       : packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths}
+    sh "lerna version patch --yes"  
   }
 
-  sh "lerna version patch --amend --yes"
-  runDeployment(packakesToDeploy)
+  runDeployment(packagesToDeploy)
 }
 
 def getAllPackages() {
@@ -80,9 +83,7 @@ def getAllPackages() {
   def packagesFileName = "packages-${currentBuild.id}.log"
   sh "lerna exec -- pwd > ${packagesFileName}"
   def paths = readFile(packagesFileName).trim().split('\n');
-  return paths.collectEntries {
-    [(it.split("/").last()) : it]
-  }
+  return paths.collectEntries { [(it.split("/").last()) : it] }
 }
 
 def getChangedPackages() {
@@ -125,6 +126,8 @@ def runDeployment(packagesMap) {
     }
   }
   jobs.failFast = true
+
+  echo "==============${jobs}"
   parallel jobs
 }
 
