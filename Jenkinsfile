@@ -26,6 +26,7 @@ pipeline {
     stage("Unit tests") {
       when { environment name: 'ACTION', value: 'test' }
       steps {
+        echo ">>>>>>>>>>>>>>>>>>>  ${params}"
         sh "yarn build"
         sh "yarn test"
       }
@@ -150,7 +151,7 @@ def runDeployment(packagesMap) {
 }
 
 def performDeployment() {
-  def packageJson = getPagetPackageJson(params.TO_DEPLOY)
+  def packageJson = getPackageJson(params.TO_DEPLOY)
   if (!packageJson.deploy) {
     throw new Exception("Not deployable package can not be deployed: ${params.TO_DEPLOY}")
   }
