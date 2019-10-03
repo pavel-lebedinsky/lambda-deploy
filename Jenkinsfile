@@ -2,7 +2,7 @@ pipeline {
   agent any
   tools {nodejs "nodejs-10"}
   parameters {
-    choice(name: 'ACTION', choices: ['test', 'deploy', 'force deploy'], description: 'Deployment strategy')
+    string(name: 'ACTION', defaultValue:'', description: 'Deployment strategy. Supported values: "test", "deploy", "force deploy"')
     string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Names of units to deploy.')
     string(name: 'TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
@@ -12,14 +12,19 @@ pipeline {
       // (JENKINS-55987) will need to use alternative method to detect
       // tags. Lowest priority. The intent for this stage was analytics.
 
-      when { buildingTag() }
+      // when { buildingTag() }
+      // steps {
+      //   echo "Git tags pushed."
+      //   echo "Nothing to do here.."
+      // }
+
       steps {
-        echo "Git tags pushed."
-        echo "Nothing to do here.."
+        echo ">>>>>>>>>>>>>>>>>>>  ${params}"
       }
     }
 
     stage("Unit tests") {
+      when { environment name: 'ACTION', value: 'test' }
       steps {
         sh "yarn build"
         sh "yarn test"
@@ -29,7 +34,7 @@ pipeline {
     stage("Discover Targets") {
       when { 
         allOf {
-          environment name: 'TO_DEPLOY', value: ''  // and add  noGitTags() condition
+          environment name: 'TO_DEPLOY', value: ''
           anyOf {
             environment name: 'ACTION', value: 'deploy'
             environment name: 'ACTION', value: 'force deploy'
@@ -38,6 +43,7 @@ pipeline {
       }
       steps {
         sh "git fetch --tags"
+        sh "yarn build"
         getChanges("${ACTION}", "${DEPLOYABLE_NAMES}")
   
         // Capture list of changed packages (lerna changed)
@@ -51,62 +57,48 @@ pipeline {
       }
     }
 
-    /*
     stage("Deploy") {
       when {
-        not { environment name: 'TO_DEPLOY', value: '' }
+        allOf {
+          environment name: 'ACTION', value: 'deploy'
+          not { environment name: 'TO_DEPLOY', value: '' }
+        }
       }
       steps {
-        script {
-          DEPLOYABLE_VERSION='X.X.X' // scrape version from it's package.json?
-          currentBuild.displayName = "#${params.TO_DEPLOY}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT}" // but just 5 characters
-          // TODO: If Fetcher name doesn't actualy exist (runtime user error?) then fail build right away.
-        }
+        performDeployment()
         // Install dependencies (lerna bootstrap)
         // Run tests (lerna run test --scope=${TO_DEPLOY})
         // Inject configuration
         // Run deployment (lerna run deploy --scope=${TO_DEPLOY})
       }
     }
-    */
   }
 }
 
 import groovy.json.JsonSlurper
 
 def getChanges(action, deployables = "") {  
-  echo "Detecting packages to deploy for '${action}' action"
-  if (deployables) {
-    echo "Deployment requested for the following packages: '${deployables}'"
-  }
+  echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
+  
+  def packakesToDeploy = [];
   def requestedPackagesNames = deployables.split(',').collect {it.trim()} as Set
-
-  def packages = getPackages();
+  def packages = getAllPackages();
   if (action == "force deploy") {
-    if (requestedPackagesNames.isEmpty()) {
-      runDeployment(packages)
-    } else {
-      runDeployment(packages.findAll {it.key in requestedPackagesNames })
-    }
+    echo "Forced deployment detected..."
+    packakesToDeploy = requestedPackagesNames.empty
+      ? packages
+      : packages.findAll {it.key in requestedPackagesNames }
   } else {
-    def changesFileName = "changes-${currentBuild.id}.json"
-    def changedPackagesPaths = [] as Set;
-    try {
-      sh "lerna changed -a -p > ${changesFileName}"
-      changedPackagesPaths = readFile(changesFileName).trim().split('\n') as Set
-    } catch(Exception e) {
-      echo "No changes detected."
-    }
-
-    if (requestedPackagesNames.isEmpty()) {
-      runDeployment(packages.findAll {it.value in changedPackagesPaths })
-    } else {
-      runDeployment(packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths})
-    }
+    def changedPackagesPaths = getChangedPackages()
+    packakesToDeploy = requestedPackagesNames.empty 
+      ? packages.findAll {it.value in changedPackagesPaths }
+      : packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths}
   }
+
+  runDeployment(packakesToDeploy)
 }
 
-def getPackages() {
+def getAllPackages() {
   echo "Calling getPackagesPaths()..."
   def packagesFileName = "packages-${currentBuild.id}.log"
   sh "lerna exec -- pwd > ${packagesFileName}"
@@ -116,15 +108,53 @@ def getPackages() {
   }
 }
 
-def getPackageDeploymentConfig(packagePath) {
+def getChangedPackages() {
+  echo "Detecting changed packages..."
+  def changesFileName = "changes-${currentBuild.id}.json"
+  def changedPackagesPaths = [] as Set;
+  try {
+    sh "lerna changed -a -p > ${changesFileName}"
+    changedPackagesPaths = readFile(changesFileName).trim().split('\n') as Set
+  } catch(Exception e) {
+    echo "No changes detected."
+  }
+  return changedPackagesPaths;
+}
+
+def getPackageJson(packagePath) {
   def packageJson = readFile("${packagePath}/package.json");
   def jsonSlurper = new JsonSlurper()
-  def packageObj = jsonSlurper.parseText(packageJson);
-  return packageObj.deploy
+  return jsonSlurper.parseText(packageJson);
 }
 
-def runDeployment(packages) {
-  echo "running deployment..."
-  echo "${packages}"
+def runDeployment(packagesMap) {
+  echo "Running deployment..."
+  echo "${packagesMap}"
+
+  def jobs = [:]
+  packagesMap.each {
+    jobs[it.key] = { 
+      build(
+        job: "${JOB_NAME}",
+        parameters: [
+          string(name: 'ACTION', value: 'deploy'),
+          string(name: 'DEPLOYABLE_NAMES', value: ''),
+          string(name: 'TO_DEPLOY', value: it.value)
+        ]
+      )  
+    }
+  }
+  jobs.failFast = true
+
+  parallel jobs
 }
 
+def performDeployment() {
+  def packageJson = getPagetPackageJson(params.TO_DEPLOY)
+  if (!packageJson.deploy) {
+    throw new Exception("Not deployable package can not be deployed: ${params.TO_DEPLOY}")
+  }
+  DEPLOYABLE_VERSION=packageJson.version
+  currentBuild.displayName = "#${packageJson.deploy.serviceName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
+  // TODO: If Fetcher name doesn't actualy exist (runtime user error?) then fail build right away.
+}
