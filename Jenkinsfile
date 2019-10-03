@@ -146,7 +146,6 @@ def runDeployment(packagesMap) {
     }
   }
   jobs.failFast = true
-
   parallel jobs
 }
 

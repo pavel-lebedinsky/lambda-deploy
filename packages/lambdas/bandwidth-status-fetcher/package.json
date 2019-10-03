@@ -4,7 +4,7 @@
   "description": "fetches bandwidth status data",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Warning: no test specified\" && exit 0"
+    "test": "APP_ENV=local NODE_ENV=test jest"
   },
   "author": "",
   "license": "UNLICENSED",
