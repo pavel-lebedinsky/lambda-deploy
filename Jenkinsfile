@@ -7,26 +7,9 @@ pipeline {
     string(name: 'TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
-    stage("Pushed tags") {
-      // fixme: this function doesn't work in declaritive pipeline
-      // (JENKINS-55987) will need to use alternative method to detect
-      // tags. Lowest priority. The intent for this stage was analytics.
-
-      // when { buildingTag() }
-      // steps {
-      //   echo "Git tags pushed."
-      //   echo "Nothing to do here.."
-      // }
-
-      steps {
-        echo ">>>>>>>>>>>>>>>>>>>  ${params}"
-      }
-    }
-
     stage("Unit tests") {
       when { environment name: 'ACTION', value: 'test' }
       steps {
-        echo ">>>>>>>>>>>>>>>>>>>  ${params}"
         sh "yarn build"
         sh "yarn test"
       }
@@ -45,17 +28,7 @@ pipeline {
       steps {
         sh "git fetch --tags"
         sh "yarn build"
-        getChanges("${ACTION}", "${DEPLOYABLE_NAMES}")
-  
-        // Capture list of changed packages (lerna changed)
-        // If BRANCH_NAME == 'prod', version repo (lerna version)
-        // For each changed package...
-        /*
-        build job: "${JOB_NAME}", parameters: [
-          string(name: 'DEPLOYABLE_NAMES', value: "foo")  // "foo" should be dynamic
-          ]
-        */  
-      }
+        discuverTargetsAndStartDeploy("${ACTION}", "${DEPLOYABLE_NAMES}")
     }
 
     stage("Deploy") {
@@ -78,12 +51,13 @@ pipeline {
 
 import groovy.json.JsonSlurper
 
-def getChanges(action, deployables = "") {  
+def discuverTargetsAndStartDeploy(action, deployables = "") {  
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
   
   def packakesToDeploy = [];
   def requestedPackagesNames = deployables.split(',').collect {it.trim()} as Set
   def packages = getAllPackages();
+  
   if (action == "force deploy") {
     echo "Forced deployment detected..."
     packakesToDeploy = requestedPackagesNames.empty
