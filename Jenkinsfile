@@ -45,10 +45,6 @@ pipeline {
       }
       steps {
         performDeployment()
-        // Install dependencies (lerna bootstrap)
-        // Run tests (lerna run test --scope=${TO_DEPLOY})
-        // Inject configuration
-        // Run deployment (lerna run deploy --scope=${TO_DEPLOY})
       }
     }
   }
