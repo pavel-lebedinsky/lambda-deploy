@@ -28,7 +28,7 @@ pipeline {
       steps {
         sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
         sh "git config --local user.name \"jenkins\""
-        sh "git reset --hard"
+        sh "git reset --hard origin/master"
         sh "git fetch --prune origin \"+refs/tags/*:refs/tags/*\""
         sh "git fetch --tags"
         sh "git checkout master"
