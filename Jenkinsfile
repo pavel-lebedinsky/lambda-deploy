@@ -53,7 +53,10 @@ pipeline {
   }
 }
 
-import groovy.json.JsonSlurper
+def signature = 'new groovy.json.JsonSlurperClassic'
+org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignature(signature)
+
+import groovy.json.JsonSlurperClassic
 
 def discuverTargetsAndStartDeploy(action, deployables = "") {  
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
@@ -101,7 +104,7 @@ def getChangedPackages() {
 
 def getPackageJson(packagePath) {
   def packageJson = readFile("${packagePath}/package.json");
-  def jsonSlurper = new JsonSlurper()
+  def jsonSlurper = new JsonSlurperClassic()
   return jsonSlurper.parseText(packageJson);
 }
 
@@ -127,7 +130,6 @@ def runDeployment(packagesMap) {
   }
   jobs.failFast = true
 
-  echo "==============${jobs}"
   parallel jobs
 }
 
