@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "APP_ENV=local NODE_ENV=test jest",
-    "deploy": "pwd"
+    "deploy": "cat 1"
   },
   "author": "",
   "license": "UNLICENSED",
