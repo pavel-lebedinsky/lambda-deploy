@@ -33,7 +33,10 @@ pipeline {
         sh "git fetch --tags"
         sh "git checkout master"
         sh "yarn build"
-        discuverTargetsAndStartDeploy("${ACTION}", "${DEPLOYABLE_NAMES}")
+        script {
+          env.deploymentResults = discuverTargetsAndStartDeploy("${ACTION}", "${DEPLOYABLE_NAMES}")
+        }
+        
       }
     }
 
@@ -46,6 +49,21 @@ pipeline {
       }
       steps {
         performDeployment()
+      }
+    }
+
+    stage("Done") {
+      when { 
+        allOf {
+          environment name: 'TO_DEPLOY', value: ''
+          anyOf {
+            environment name: 'ACTION', value: 'deploy'
+            environment name: 'ACTION', value: 'force deploy'
+          }
+        }
+      }
+      steps {
+        echo "Deployment done with results: ${env.deploymentResults}"
       }
     }
   }
@@ -76,7 +94,7 @@ def discuverTargetsAndStartDeploy(action, deployables = "") {
     sh "lerna version patch --yes"  
   }
 
-  runDeployment(packagesToDeploy)
+  return runDeployment(packagesToDeploy)
 }
 
 def getAllPackages() {
@@ -121,14 +139,23 @@ def runDeployment(packagesMap) {
             string(name: 'ACTION', value: 'deploy'),
             string(name: 'DEPLOYABLE_NAMES', value: ''),
             string(name: 'TO_DEPLOY', value: it.value)
-          ]
+          ],
+          propagate: false,
+          wait: true
         )  
       } 
     }
   }
   jobs.failFast = true
 
-  parallel jobs
+  def parallelResults = parallel jobs
+
+  def results = [:]
+  parallelResults.each {
+    results[it.key] = it.value.getResult()
+  }
+
+  return results;
 }
 
 def performDeployment() {
