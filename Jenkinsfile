@@ -71,6 +71,7 @@ def signature = 'new groovy.json.JsonSlurperClassic'
 org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignature(signature)
 
 import groovy.json.JsonSlurperClassic
+import groovy.json.JsonSlurper
 
 def discoverTargetsAndStartDeploy(action, deployables = "") {
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
@@ -128,7 +129,7 @@ def startPackagesDeployments(packagesToDeploy) {
 
   def jobs = [:]
   packagesToDeploy.split(",").collect {
-    def packageJson = getPackageJson(it)
+    def packageJson = getPackageJson(it);
     if (packageJson.deploy) {
       jobs[packageJson.name] = {
         build(
@@ -149,9 +150,7 @@ def startPackagesDeployments(packagesToDeploy) {
   def parallelResults = parallel jobs
 
   def results = [:]
-  parallelResults.each {
-    results[it.key] = it.value.getResult()
-  }
+  parallelResults.each { results[it.key] = it.value.getResult() }
 
   return results;
 }
