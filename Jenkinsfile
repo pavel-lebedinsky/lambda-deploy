@@ -71,7 +71,6 @@ def signature = 'new groovy.json.JsonSlurperClassic'
 org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignature(signature)
 
 import groovy.json.JsonSlurperClassic
-import groovy.json.JsonSlurper
 
 def discoverTargetsAndStartDeploy(action, deployables = "") {
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
@@ -90,27 +89,21 @@ def discoverTargetsAndStartDeploy(action, deployables = "") {
     packagesToDeploy = requestedPackagesNames.empty 
       ? packages.findAll {it.value in changedPackagesPaths }
       : packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths}
-    sh "lerna version patch --yes"  
   }
 
   return packagesToDeploy.values().join(",");
 }
 
 def getAllPackages() {
-  echo "Calling getPackagesPaths()..."
-  def packagesFileName = "packages-${currentBuild.id}.log"
-  sh "lerna exec -- pwd > ${packagesFileName}"
-  def paths = readFile(packagesFileName).trim().split('\n');
+  def paths = sh(script: "lerna exec -- pwd", returnStdout: true).split("\n");
   return paths.collectEntries { [(it.split("/").last()) : it] }
 }
 
 def getChangedPackages() {
   echo "Detecting changed packages..."
-  def changesFileName = "changes-${currentBuild.id}.json"
   def changedPackagesPaths = [] as Set;
   try {
-    sh "lerna changed -a -p > ${changesFileName}"
-    changedPackagesPaths = readFile(changesFileName).trim().split('\n') as Set
+    changedPackagesPaths = sh(script: "lerna changed -a -p", returnStdout: true).split("\n") as Set
   } catch(Exception e) {
     echo "No changes detected."
   }
