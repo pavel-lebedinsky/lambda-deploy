@@ -34,36 +34,34 @@ pipeline {
         sh "git checkout master"
         sh "yarn build"
         script {
-          env.deploymentResults = discuverTargetsAndStartDeploy("${ACTION}", "${DEPLOYABLE_NAMES}")
+          env.packagesToDeploy = discoverTargetsAndStartDeploy(ACTION, DEPLOYABLE_NAMES)
         }
-        
       }
     }
 
     stage("Deploy") {
       when {
-        allOf {
+        anyOf {
           environment name: 'ACTION', value: 'deploy'
-          not { environment name: 'TO_DEPLOY', value: '' }
+          environment name: 'ACTION', value: 'force deploy'
         }
       }
       steps {
-        performDeployment()
+        script {
+          if (TO_DEPLOY) {
+            env.deploymentResult = doPackageDeployment(TO_DEPLOY)
+          } else if (env.packagesToDeploy) {
+            env.deploymentResult = startPackagesDeployments(env.packagesToDeploy);
+          } else {
+            echo "Nothing to deploy."
+          }
+        }
       }
     }
 
     stage("Done") {
-      when { 
-        allOf {
-          environment name: 'TO_DEPLOY', value: ''
-          anyOf {
-            environment name: 'ACTION', value: 'deploy'
-            environment name: 'ACTION', value: 'force deploy'
-          }
-        }
-      }
       steps {
-        echo "Deployment done with results: ${env.deploymentResults}"
+        echo "Job done: ${env.deploymentResults}"
       }
     }
   }
@@ -74,7 +72,7 @@ org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignatu
 
 import groovy.json.JsonSlurperClassic
 
-def discuverTargetsAndStartDeploy(action, deployables = "") {  
+def discoverTargetsAndStartDeploy(action, deployables = "") {
   echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
   
   def packagesToDeploy = [];
@@ -94,7 +92,7 @@ def discuverTargetsAndStartDeploy(action, deployables = "") {
     sh "lerna version patch --yes"  
   }
 
-  return runDeployment(packagesToDeploy)
+  return packagesToDeploy.values().join(",");
 }
 
 def getAllPackages() {
@@ -124,21 +122,21 @@ def getPackageJson(packagePath) {
   return jsonSlurper.parseText(packageJson);
 }
 
-def runDeployment(packagesMap) {
-  echo "Running deployment..."
-  echo "${packagesMap}"
+def startPackagesDeployments(packagesToDeploy) {
+  echo "Starting deployments..."
+  echo "${packagesToDeploy}"
 
   def jobs = [:]
-  packagesMap.each {
-    def packageJson = getPackageJson(it.value)
+  packagesToDeploy.split(",").collect {
+    def packageJson = getPackageJson(it)
     if (packageJson.deploy) {
-      jobs[it.key] = {
+      jobs[packageJson.name] = {
         build(
           job: "${JOB_NAME}",
           parameters: [
             string(name: 'ACTION', value: 'deploy'),
             string(name: 'DEPLOYABLE_NAMES', value: ''),
-            string(name: 'TO_DEPLOY', value: it.value)
+            string(name: 'TO_DEPLOY', value: it)
           ],
           propagate: false,
           wait: true
@@ -158,8 +156,8 @@ def runDeployment(packagesMap) {
   return results;
 }
 
-def performDeployment() {
-  def packageJson = getPackageJson(params.TO_DEPLOY)
+def doPackageDeployment(packageToDeploy) {
+  def packageJson = getPackageJson(packageToDeploy)
   if (!packageJson.deploy) {
     throw new Exception("Not deployable package can not be deployed: ${params.TO_DEPLOY}")
   }
