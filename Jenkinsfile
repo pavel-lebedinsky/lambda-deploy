@@ -35,7 +35,7 @@ pipeline {
         sh "git fetch --tags"
         sh "yarn build"
         script {
-          def packagesToDeploy = discoverTargetsAndStartDeploy(env.ACTION, env.DEPLOYABLE_NAMES)
+          def packagesToDeploy = discoverTargets(env.ACTION, env.DEPLOYABLE_NAMES)
           if (packagesToDeploy) {
             echo "Deploying: \n${packagesToDeploy}"
             startPackagesDeployments(packagesToDeploy);
@@ -120,7 +120,7 @@ pipeline {
   }
 }
 
-def discoverTargetsAndStartDeploy(action, deployables = "") {
+def discoverTargets(action, deployables = "") {
   return sh(
     script: "yarn run --silent deploy:discover -f ${action == 'force deploy'} -p ${deployables}",
     returnStdout: true

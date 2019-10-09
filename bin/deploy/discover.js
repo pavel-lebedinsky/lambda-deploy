@@ -49,6 +49,7 @@ async function getChangedPackages() {
 }
 
 async function main() {
+  console.error('>>>>>>>>>>>>>>>>>  ' + process.cwd());
   let packagesToDeploy = [];
   const requestedPackages = argv.packages;
   const isAll = requestedPackages[0] === 'all';
