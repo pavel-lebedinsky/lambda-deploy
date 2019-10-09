@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { execPromise } = require('./utils');
 
 const argv = require('yargs')
@@ -27,7 +28,10 @@ async function getDeployablePackages() {
     .reduce((result, packagePath) => {
       const packageJson = JSON.parse(fs.readFileSync(`${packagePath}/package.json`).toString());
       if (packageJson.deploy) {
-        result.push({ serviceName: packageJson.deploy.serviceName, packagePath });
+        result.push({
+          serviceName: packageJson.deploy.serviceName,
+          packagePath: path.resolve(process.cwd(), packagePath)
+        });
       }
       return result;
     }, []);
@@ -37,7 +41,7 @@ async function getChangedPackages() {
   let result = [];
   try {
     const output = await execPromise('lerna changed -a -p');
-    result = output.split('\n');
+    result = output.split('\n').map(packagePath => path.resolve(process.cwd(), packagePath));
   } catch (err) {
     console.warn('No changes detected.');
   }
