@@ -89,18 +89,17 @@ def startPackagesDeployments(packagesToDeploy) {
 
   def jobs = [:]
   packagesToDeploy.split("\n").collect {
-      jobs[it] = {
-        build(
-          job: "${JOB_NAME}",
-          parameters: [
-            string(name: 'ACTION', value: 'deploy'),
-            string(name: 'DEPLOYABLE_NAMES', value: ''),
-            string(name: 'TO_DEPLOY', value: it)
-          ],
-          propagate: false,
-          wait: true
-        )  
-      } 
+    jobs[it] = {
+      build(
+        job: "${JOB_NAME}",
+        parameters: [
+          string(name: 'ACTION', value: 'deploy'),
+          string(name: 'DEPLOYABLE_NAMES', value: ''),
+          string(name: 'TO_DEPLOY', value: it)
+        ],
+        propagate: false,
+        wait: true
+      )
     }
   }
   jobs.failFast = true
