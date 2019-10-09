@@ -63,7 +63,7 @@ pipeline {
         }
         sh '''
           export TEST_VAR=test-val
-          yarn run deploy ${env.PATH_TO_DEPLOY}
+          yarn run deploy ${PATH_TO_DEPLOY}
         ''';
       }
     }
@@ -85,7 +85,7 @@ pipeline {
         }
         sh '''
           export TEST_VAR=test-val
-          yarn run deploy ${env.PATH_TO_DEPLOY}
+          yarn run deploy ${PATH_TO_DEPLOY}
         ''';
       }
     }
@@ -107,7 +107,7 @@ pipeline {
         }
         sh '''
           export TEST_VAR=test-val
-          yarn run deploy ${env.PATH_TO_DEPLOY}
+          yarn run deploy ${PATH_TO_DEPLOY}
         ''';
       }
     }
