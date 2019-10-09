@@ -38,7 +38,7 @@ pipeline {
           def packagesToDeploy = discoverTargetsAndStartDeploy(env.ACTION, env.DEPLOYABLE_NAMES)
           if (packagesToDeploy) {
             echo "Deploying: \n${packagesToDeploy}"
-            startPackagesDeployments(env.packagesToDeploy);
+            startPackagesDeployments(packagesToDeploy);
           } else {
             echo "Nothing to deploy."
           }
@@ -65,7 +65,50 @@ pipeline {
           export TEST_VAR=test-val
           yarn run deploy ${env.PATH_TO_DEPLOY}
         ''';
+      }
+    }
 
+    stage("Deploy to qa") {
+      when {
+        allOf {
+          branch 'qa'
+          not { environment name: 'PATH_TO_DEPLOY', value: '' }
+          anyOf {
+            environment name: 'ACTION', value: 'deploy'
+            environment name: 'ACTION', value: 'force deploy'
+          }
+        }
+      }
+      steps {
+        script {
+          setBuildName(env.PATH_TO_DEPLOY)
+        }
+        sh '''
+          export TEST_VAR=test-val
+          yarn run deploy ${env.PATH_TO_DEPLOY}
+        ''';
+      }
+    }
+
+    stage("Deploy to prod") {
+      when {
+        allOf {
+          branch 'master'
+          not { environment name: 'PATH_TO_DEPLOY', value: '' }
+          anyOf {
+            environment name: 'ACTION', value: 'deploy'
+            environment name: 'ACTION', value: 'force deploy'
+          }
+        }
+      }
+      steps {
+        script {
+          setBuildName(env.PATH_TO_DEPLOY)
+        }
+        sh '''
+          export TEST_VAR=test-val
+          yarn run deploy ${env.PATH_TO_DEPLOY}
+        ''';
       }
     }
 
