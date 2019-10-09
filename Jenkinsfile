@@ -38,6 +38,9 @@ pipeline {
           def packagesToDeploy = discoverTargets(env.ACTION, env.DEPLOYABLE_NAMES)
           if (packagesToDeploy) {
             echo "Deploying: \n${packagesToDeploy}"
+            if (env.BRANCH_NAME == "master") {
+              echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
+            }
             startPackagesDeployments(packagesToDeploy);
           } else {
             echo "Nothing to deploy."
