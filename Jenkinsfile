@@ -72,48 +72,15 @@ org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignatu
 
 import groovy.json.JsonSlurperClassic
 
+ACTION_TEST = "test";
+ACTION_DEPLOY = "deploy";
+ACTION_FORCE_DEPLOY = "force deploy";
+
 def discoverTargetsAndStartDeploy(action, deployables = "") {
-  echo "Detecting packages for '${action}' action to appy to ${deployables ? deployables : "all"} packages..."
-  
-  def packagesToDeploy = [];
-  def requestedPackagesNames = deployables.split(',').collect {it.trim()} as Set
-  def packages = getAllPackages();
-  
-  if (action == "force deploy") {
-    echo "Forced deployment detected..."
-    packagesToDeploy = requestedPackagesNames.empty
-      ? packages
-      : packages.findAll {it.key in requestedPackagesNames }
-  } else {
-    def changedPackagesPaths = getChangedPackages()
-    packagesToDeploy = requestedPackagesNames.empty 
-      ? packages.findAll {it.value in changedPackagesPaths }
-      : packages.findAll {it.key in requestedPackagesNames && it.value in changedPackagesPaths}
-  }
-
-  return packagesToDeploy.values().join(",");
-}
-
-def getAllPackages() {
-  def paths = sh(script: "lerna exec -- pwd", returnStdout: true).split("\n");
-  return paths.collectEntries { [(it.split("/").last()) : it] }
-}
-
-def getChangedPackages() {
-  echo "Detecting changed packages..."
-  def changedPackagesPaths = [] as Set;
-  try {
-    changedPackagesPaths = sh(script: "lerna changed -a -p", returnStdout: true).split("\n") as Set
-  } catch(Exception e) {
-    echo "No changes detected."
-  }
-  return changedPackagesPaths;
-}
-
-def getPackageJson(packagePath) {
-  def packageJson = readFile("${packagePath}/package.json");
-  def jsonSlurper = new JsonSlurperClassic()
-  return jsonSlurper.parseText(packageJson);
+  return sh(
+    script: "yarn run deploy:discover -f ${action == ACTION_FORCE_DEPLOY} -p ${deployables}",
+    returnStdout: true
+  );
 }
 
 def startPackagesDeployments(packagesToDeploy) {
@@ -121,10 +88,8 @@ def startPackagesDeployments(packagesToDeploy) {
   echo "${packagesToDeploy}"
 
   def jobs = [:]
-  packagesToDeploy.split(",").collect {
-    def packageJson = getPackageJson(it);
-    if (packageJson.deploy) {
-      jobs[packageJson.name] = {
+  packagesToDeploy.split("\n").collect {
+      jobs[it] = {
         build(
           job: "${JOB_NAME}",
           parameters: [
@@ -149,11 +114,11 @@ def startPackagesDeployments(packagesToDeploy) {
 }
 
 def doPackageDeployment(packageToDeploy) {
-  def packageJson = getPackageJson(packageToDeploy)
+  //def packageJson = getPackageJson(packageToDeploy)
   if (!packageJson.deploy) {
     throw new Exception("Not deployable package can not be deployed: ${params.TO_DEPLOY}")
   }
-  DEPLOYABLE_VERSION=packageJson.version
+  DEPLOYABLE_VERSION= "0.0.0" // packageJson.version
   currentBuild.displayName = "#${packageJson.deploy.serviceName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
   sh "lerna run test --scope=${packageJson.name}"
   sh "lerna run deploy --scope=${packageJson.name}"
