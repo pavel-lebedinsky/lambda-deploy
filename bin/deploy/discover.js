@@ -41,7 +41,11 @@ async function getChangedPackages() {
   let result = [];
   try {
     const output = await execPromise('lerna changed -a -p');
-    result = output.split('\n').map(packagePath => path.resolve(process.cwd(), packagePath));
+    result = output.split('\n').map(packagePath => {
+      console.log('1111111111111 ' + process.cwd());
+      console.log('2222222222222 ' + packagePath);
+      return path.resolve(process.cwd(), packagePath)
+    });
   } catch (err) {
     console.warn('No changes detected.');
   }
@@ -49,7 +53,6 @@ async function getChangedPackages() {
 }
 
 async function main() {
-  console.error('>>>>>>>>>>>>>>>>>  ' + process.cwd());
   let packagesToDeploy = [];
   const requestedPackages = argv.packages;
   const isAll = requestedPackages[0] === 'all';
