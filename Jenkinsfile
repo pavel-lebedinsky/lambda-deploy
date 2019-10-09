@@ -19,6 +19,9 @@ pipeline {
       when { 
         allOf {
           environment name: 'TO_DEPLOY', value: ''
+          not {
+            environment name: 'DEPLOYABLE_NAMES', value: ''
+          }
           anyOf {
             environment name: 'ACTION', value: 'deploy'
             environment name: 'ACTION', value: 'force deploy'
@@ -28,13 +31,15 @@ pipeline {
       steps {
         sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
         sh "git config --local user.name \"jenkins\""
+        sh "git checkout master"
+        sh "git pull --rebase"
         sh "git reset --hard origin/master"
         sh "git fetch --prune origin \"+refs/tags/*:refs/tags/*\""
         sh "git fetch --tags"
-        sh "git checkout master"
         sh "yarn build"
         script {
           env.packagesToDeploy = discoverTargetsAndStartDeploy(ACTION, DEPLOYABLE_NAMES)
+          echo ">>>>>> ${env.packagesToDeploy}"
         }
       }
     }
@@ -67,20 +72,15 @@ pipeline {
   }
 }
 
-def signature = 'new groovy.json.JsonSlurperClassic'
-org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval.get().approveSignature(signature)
-
-import groovy.json.JsonSlurperClassic
-
-ACTION_TEST = "test";
-ACTION_DEPLOY = "deploy";
-ACTION_FORCE_DEPLOY = "force deploy";
-
 def discoverTargetsAndStartDeploy(action, deployables = "") {
   return sh(
-    script: "yarn run deploy:discover -f ${action == ACTION_FORCE_DEPLOY} -p ${deployables}",
+    script: "yarn run --silent deploy:discover -f ${action == 'force deploy'} -p ${deployables}",
     returnStdout: true
   );
+}
+
+def getDeploymentName(packagePath) {
+  return sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true);
 }
 
 def startPackagesDeployments(packagesToDeploy) {
@@ -113,12 +113,7 @@ def startPackagesDeployments(packagesToDeploy) {
 }
 
 def doPackageDeployment(packageToDeploy) {
-  //def packageJson = getPackageJson(packageToDeploy)
-  if (!packageJson.deploy) {
-    throw new Exception("Not deployable package can not be deployed: ${params.TO_DEPLOY}")
-  }
-  DEPLOYABLE_VERSION= "0.0.0" // packageJson.version
-  currentBuild.displayName = "#${packageJson.deploy.serviceName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
-  sh "lerna run test --scope=${packageJson.name}"
-  sh "lerna run deploy --scope=${packageJson.name}"
+  def buildName = sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true);
+  currentBuild.displayName = "#${buildName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
+  sh(script: "yarn run deploy ${packagePath}", returnStdout: true);
 }

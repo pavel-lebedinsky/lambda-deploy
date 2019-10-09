@@ -6,8 +6,10 @@
   "scripts": {
     "build": "yarn install && lerna bootstrap",
     "build:deploy": "bin/build-deploy",
-    "deploy": "yarn build:deploy && node bin/deploy",
+    "_deploy": "yarn build:deploy && node bin/deploy",
+    "deploy": "pwd $*",
     "deploy:discover": "node bin/deploy/discover",
+    "deploy:get-deployment-name": "node bin/deploy/get-deployment-name",
     "test": "APP_ENV=local NODE_ENV=test jest"
   },
   "author": "",
