@@ -112,7 +112,7 @@ def startPackagesDeployments(packagesToDeploy) {
   return results;
 }
 
-def doPackageDeployment(packageToDeploy) {
+def doPackageDeployment(packagePath) {
   def buildName = sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true);
   currentBuild.displayName = "#${buildName}-${DEPLOYABLE_VERSION}-${env.GIT_COMMIT.substring(0,5)}"
   sh(script: "yarn run deploy ${packagePath}", returnStdout: true);
