@@ -3,8 +3,8 @@ pipeline {
   tools {nodejs "nodejs-10"}
   parameters {
     string(name: 'ACTION', defaultValue:'', description: 'Deployment strategy. Supported values: "test", "deploy", "force deploy"')
-    string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Names of units to deploy.')
-    string(name: 'TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
+    string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Space separated package names of units to deploy.')
+    string(name: 'PATH_TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
     stage("Unit tests") {
@@ -18,10 +18,7 @@ pipeline {
     stage("Discover Targets") {
       when { 
         allOf {
-          environment name: 'TO_DEPLOY', value: ''
-          not {
-            environment name: 'DEPLOYABLE_NAMES', value: ''
-          }
+          not { environment name: 'DEPLOYABLE_NAMES', value: '' }
           anyOf {
             environment name: 'ACTION', value: 'deploy'
             environment name: 'ACTION', value: 'force deploy'
@@ -38,29 +35,37 @@ pipeline {
         sh "git fetch --tags"
         sh "yarn build"
         script {
-          env.packagesToDeploy = discoverTargetsAndStartDeploy(ACTION, DEPLOYABLE_NAMES)
-          echo ">>>>>> ${env.packagesToDeploy}"
-        }
-      }
-    }
-
-    stage("Deploy") {
-      when {
-        anyOf {
-          environment name: 'ACTION', value: 'deploy'
-          environment name: 'ACTION', value: 'force deploy'
-        }
-      }
-      steps {
-        script {
-          if (TO_DEPLOY) {
-            env.deploymentResult = doPackageDeployment(TO_DEPLOY)
-          } else if (env.packagesToDeploy) {
-            env.deploymentResult = startPackagesDeployments(env.packagesToDeploy);
+          def packagesToDeploy = discoverTargetsAndStartDeploy(env.ACTION, env.DEPLOYABLE_NAMES)
+          if (packagesToDeploy) {
+            echo "Deploying: \n${packagesToDeploy}"
+            startPackagesDeployments(env.packagesToDeploy);
           } else {
             echo "Nothing to deploy."
           }
         }
+      }
+    }
+
+    stage("Deploy to dev") {
+      when {
+        allOf {
+          branch 'dev'
+          not { environment name: 'PATH_TO_DEPLOY', value: '' }
+          anyOf {
+            environment name: 'ACTION', value: 'deploy'
+            environment name: 'ACTION', value: 'force deploy'
+          }
+        }
+      }
+      steps {
+        script {
+          setBuildName(env.PATH_TO_DEPLOY)
+        }
+        sh '''
+          export TEST_VAR=test-val
+          yarn run deploy ${env.PATH_TO_DEPLOY}
+        ''';
+
       }
     }
 
@@ -91,19 +96,13 @@ def startPackagesDeployments(packagesToDeploy) {
   packagesToDeploy.split("\n").collect {
     jobs[it] = {
       build(
-        job: "${JOB_NAME}",
-        parameters: [
-          string(name: 'ACTION', value: 'deploy'),
-          string(name: 'DEPLOYABLE_NAMES', value: ''),
-          string(name: 'TO_DEPLOY', value: it)
-        ],
-        propagate: false,
-        wait: true
+        job: env.JOB_NAME,
+        parameters: [ string(name: 'ACTION', value: 'deploy'), string(name: 'PATH_TO_DEPLOY', value: it) ],
+        propagate: false
       )
     }
   }
   jobs.failFast = true
-
   def parallelResults = parallel jobs
 
   def results = [:]
@@ -112,8 +111,7 @@ def startPackagesDeployments(packagesToDeploy) {
   return results;
 }
 
-def doPackageDeployment(packagePath) {
-  def buildName = sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true);
+def setBuildName(packagePath) {
+  def buildName = sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true).trim();
   currentBuild.displayName = "#${buildName}-${env.GIT_COMMIT.substring(0,5)}"
-  sh(script: "yarn run deploy ${packagePath}", returnStdout: true);
 }
