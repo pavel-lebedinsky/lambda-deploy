@@ -42,13 +42,15 @@ async function getChangedPackages() {
   try {
     const output = await execPromise('lerna changed -a -p');
     result = output.split('\n').map(packagePath => {
-      console.log('1111111111111 ' + process.cwd());
-      console.log('2222222222222 ' + packagePath);
+      console.error('1111111111111 ' + process.cwd());
+      console.error('2222222222222 ' + packagePath);
+      console.error('3333333333333 ' + path.resolve(process.cwd(), packagePath));
       return path.resolve(process.cwd(), packagePath)
     });
   } catch (err) {
     console.warn('No changes detected.');
   }
+  console.error(result);
   return result;
 }
 
