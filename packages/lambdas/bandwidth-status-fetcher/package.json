@@ -1,6 +1,6 @@
 {
   "name": "bandwidth-status-fetcher-lambda",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "fetches bandwidth status data",
   "main": "index.js",
   "scripts": {
@@ -16,6 +16,6 @@
     "awsParameter": "bandwidthStatusFetcherLambdaTag"
   },
   "dependencies": {
-    "fetchers-configuration": "^0.0.2"
+    "fetchers-configuration": "^0.0.3"
   }
 }
