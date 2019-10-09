@@ -22,6 +22,8 @@ const argv = require('yargs')
   })
   .argv;
 
+const getRelativePath = packagePath => packagePath.replace(`${process.cwd()}/`, '');
+
 async function getDeployablePackages() {
   const output = await execPromise('lerna exec -- pwd');
   return output.split('\n')
@@ -30,7 +32,7 @@ async function getDeployablePackages() {
       if (packageJson.deploy) {
         result.push({
           serviceName: packageJson.deploy.serviceName,
-          packagePath: packagePath.replace(`${process.cwd()}/`)
+          packagePath: getRelativePath(packagePath)
         });
       }
       return result;
@@ -41,7 +43,7 @@ async function getChangedPackages() {
   let result = [];
   try {
     const output = await execPromise('lerna changed -a -p');
-    result = output.split('\n').map(packagePath => packagePath.replace(`${process.cwd()}/`));
+    result = output.split('\n').map(getRelativePath);
   } catch (err) {
     console.warn('No changes detected.');
   }
