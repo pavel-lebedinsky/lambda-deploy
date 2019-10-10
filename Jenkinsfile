@@ -3,8 +3,8 @@ pipeline {
   tools {nodejs "nodejs-10"}
   parameters {
     string(name: 'ACTION', defaultValue:'', description: 'Deployment strategy. Supported values: "deploy", "force deploy"')
-    string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Space separated package names of units to deploy.')
-    string(name: 'PATH_TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
+    string(name: 'PACKAGES_TO_DEPLOY', defaultValue:'', description: 'Space separated package names of packages to deploy.')
+    string(name: 'PACKAGE_NAME', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
     stage("Checkout branch") {
@@ -22,7 +22,7 @@ pipeline {
     stage("Discover Targets") {
       when {
         allOf {
-          not { environment name: 'DEPLOYABLE_NAMES', value: '' }
+          not { environment name: 'PACKAGES_TO_DEPLOY', value: '' }
           anyOf {
             environment name: 'ACTION', value: 'deploy'
             environment name: 'ACTION', value: 'force deploy'
@@ -32,16 +32,15 @@ pipeline {
       steps {
         sh "yarn build"
         script {
-          discoverDeploymentTargetsAndDeploy(env.ACTION, env.DEPLOYABLE_NAMES)
+          discoverDeploymentTargetsAndDeploy(env.ACTION, env.PACKAGES_TO_DEPLOY)
         }
       }
     }
 
-    stage("Deploy") {
+    stage("Unit Tests") {
       when {
         allOf {
-          branch 'dev'
-          not { environment name: 'PATH_TO_DEPLOY', value: '' }
+          not { environment name: 'PACKAGE_NAME', value: '' }
           anyOf {
             environment name: 'ACTION', value: 'deploy'
             environment name: 'ACTION', value: 'force deploy'
@@ -50,24 +49,42 @@ pipeline {
       }
       steps {
         script {
-          currentBuild.displayName = getBuildName(env.PATH_TO_DEPLOY)
+          currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
         }
-        withCredentials([
-          string(credentialsId: 'AWS_REGION', variable: 'AWS_REGION'),
-          [
-            $class: 'AmazonWebServicesCredentialsBinding',
-            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-            credentialsId: "${buildConfigs[BRANCH_NAME].awsCredentialsId}",
-            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-          ]
-        ]) {
+        sh "lerna run test --scope=${PACKAGE_NAME}";
+      }
+    }
+
+    stage("Deploy") {
+      when {
+        allOf {
+          not { environment name: 'PACKAGE_NAME', value: '' }
+          anyOf {
+            environment name: 'ACTION', value: 'deploy'
+            environment name: 'ACTION', value: 'force deploy'
+          }
+        }
+      }
+      steps {
+        script {
+          currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
+        }
+//         withCredentials([
+//           string(credentialsId: 'AWS_REGION', variable: 'AWS_REGION'),
+//           [
+//             $class: 'AmazonWebServicesCredentialsBinding',
+//             accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+//             credentialsId: "${buildConfigs[BRANCH_NAME].awsCredentialsId}",
+//             secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+//           ]
+//         ]) {
           sh '''
             yarn build
             export TEST_VAR=test-val
             export APP_ENV=${buildConfigs[BRANCH_NAME].appEnv}
-            yarn deploy ${PATH_TO_DEPLOY}
+            yarn deploy ${PACKAGE_NAME}
           ''';
-        }
+//         }
       }
     }
 
@@ -94,9 +111,9 @@ buildConfigs = [
   ]
 ];
 
-def discoverDeploymentTargetsAndDeploy(action, deployables = '') {
+def discoverDeploymentTargetsAndDeploy(action, packagesNames = '') {
   def packagesToDeploy = sh(
-    script: "yarn --silent deploy:discover -f ${action == 'force deploy'} -p ${deployables}",
+    script: "yarn --silent deploy:discover -f ${action == 'force deploy'} -p ${packagesNames}",
     returnStdout: true
   )
   if (packagesToDeploy) {
@@ -119,7 +136,7 @@ def startPackagesDeployments(packagesToDeploy) {
     jobs[it] = {
       build(
         job: env.JOB_NAME,
-        parameters: [ string(name: 'ACTION', value: 'deploy'), string(name: 'PATH_TO_DEPLOY', value: it) ],
+        parameters: [ string(name: 'ACTION', value: 'deploy'), string(name: 'PACKAGE_NAME', value: it) ],
         propagate: false
       )
     }

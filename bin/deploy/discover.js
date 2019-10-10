@@ -1,4 +1,3 @@
-const fs = require('fs');
 const { execPromise } = require('./utils');
 
 const argv = require('yargs')
@@ -21,53 +20,36 @@ const argv = require('yargs')
   })
   .argv;
 
-const getRelativePath = packagePath => packagePath.replace(`${process.cwd()}/`, '');
-
-async function getDeployablePackages() {
-  const output = await execPromise('lerna exec -- pwd');
-  return output.split('\n')
-    .reduce((result, packagePath) => {
-      const packageJson = JSON.parse(fs.readFileSync(`${packagePath}/package.json`).toString());
-      if (packageJson.deploy) {
-        result.push({
-          serviceName: packageJson.deploy.serviceName,
-          packagePath: getRelativePath(packagePath)
-        });
-      }
-      return result;
-    }, []);
+async function getPackages() {
+  const output = await execPromise('lerna list -a --json');
+  return JSON.parse(output);
 }
 
 async function getChangedPackages() {
-  let result = [];
   try {
-    const output = await execPromise('lerna changed -a -p');
-    result = output.split('\n').map(getRelativePath);
+    const output = await execPromise('lerna changed -a --json');
+    return JSON.parse(output);
   } catch (err) {
-    console.warn('No changes detected.');
+    console.warn('No changed packages detected');
   }
-  return result;
+  return [];
 }
 
 async function main() {
-  let packagesToDeploy = [];
   const requestedPackages = argv.packages;
   const isAll = requestedPackages[0] === 'all';
-  const allPackagesList = await getDeployablePackages();
+  const allPackages = await getPackages();
 
-  if (argv.force) {
-    packagesToDeploy = isAll
-      ? allPackagesList
-      : allPackagesList.filter(item => requestedPackages.includes(item.serviceName));
-  } else {
-    const changedPackagesPaths = await getChangedPackages();
-    packagesToDeploy = isAll
-      ? allPackagesList.filter(item => changedPackagesPaths.includes(item.packagePath))
-      : allPackagesList.filter(item =>
-          changedPackagesPaths.includes(item.packagePath) && requestedPackages.includes(item.serviceName));
+  let packagesToDeploy = isAll
+    ? allPackages
+    : allPackages.filter(item => requestedPackages.includes(item.name));
+
+  if (!argv.force) {
+    const changedPackagesNames = (await getChangedPackages()).map(item => item.name);
+    packagesToDeploy = packagesToDeploy.filter(item => changedPackagesNames.includes(item.name));
   }
 
-  console.log(packagesToDeploy.map(item => item.packagePath).join('\n'));
+  console.log(packagesToDeploy.map(item => item.name).join('\n'));
 }
 
 main().catch(console.error);
