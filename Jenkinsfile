@@ -10,9 +10,23 @@ pipeline {
     stage("Checkout branch") {
       steps {
         script {
-          if (env.PACKAGE_NAME) {
-            currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
-          }
+          env.buildConfigs = [
+            dev: [
+              awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
+              appEnv: "dev"
+            ],
+            qa: [
+              awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
+              appEnv: "qa"
+            ],
+            master: [
+              awsCredentialsId: "jenkins-fbcd-dcgvideo-stage",
+              appEnv: "prod"
+            ]
+          ];
+        }
+        script {
+          if (env.PACKAGE_NAME) currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
         }
         sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
         sh "git config --local user.name \"jenkins\""
@@ -69,7 +83,7 @@ pipeline {
       }
       steps {
         script {
-          def config = buildConfigs[env.BRANCH_NAME]
+          def config = env.buildConfigs[env.BRANCH_NAME]
           env.APP_ENV = config.appEnv
           env.awsCredentialsId = config.awsCredentialsId
         }
@@ -100,21 +114,6 @@ pipeline {
     }
   }
 }
-
-buildConfigs = [
-  dev: [
-    awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
-    appEnv: "dev"
-  ],
-  qa: [
-    awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
-    appEnv: "qa"
-  ],
-  master: [
-    awsCredentialsId: "jenkins-fbcd-dcgvideo-stage",
-    appEnv: "prod"
-  ]
-];
 
 def discoverDeploymentTargetsAndDeploy(action, packagesNames = '') {
   def packagesToDeploy = sh(
