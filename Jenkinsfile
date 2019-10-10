@@ -152,5 +152,5 @@ def startPackagesDeployments(packagesToDeploy) {
 
 def getBuildName(packageName) {
   def buildName = sh(script: "yarn --silent deploy:get-deployment-name ${packageName}", returnStdout: true).trim();
-  return "#${buildName}-${env.GIT_COMMIT.substring(0,5)}"
+  return "${buildName}-${env.GIT_COMMIT.substring(0,5)}"
 }
