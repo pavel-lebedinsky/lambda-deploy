@@ -9,6 +9,11 @@ pipeline {
   stages {
     stage("Checkout branch") {
       steps {
+        script {
+          if (env.PACKAGE_NAME) {
+            currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
+          }
+        }
         sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
         sh "git config --local user.name \"jenkins\""
         sh "git checkout ${BRANCH_NAME}"
@@ -48,9 +53,6 @@ pipeline {
         }
       }
       steps {
-        script {
-          currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
-        }
         sh "lerna run test --scope=${PACKAGE_NAME}";
       }
     }
@@ -67,8 +69,11 @@ pipeline {
       }
       steps {
         script {
-          currentBuild.displayName = getBuildName(env.PACKAGE_NAME)
+          def config = buildConfigs[env.BRANCH_NAME]
+          env.APP_ENV = config.appEnv
+          env.awsCredentialsId = config.awsCredentialsId
         }
+
 //         withCredentials([
 //           string(credentialsId: 'AWS_REGION', variable: 'AWS_REGION'),
 //           [
@@ -81,7 +86,7 @@ pipeline {
           sh '''
             yarn build
             export TEST_VAR=test-val
-            export APP_ENV=${buildConfigs[BRANCH_NAME].appEnv}
+            export APP_ENV=${APP_ENV}
             yarn deploy ${PACKAGE_NAME}
           ''';
 //         }
@@ -121,7 +126,7 @@ def discoverDeploymentTargetsAndDeploy(action, packagesNames = '') {
     if (env.BRANCH_NAME == "master") {
       // sh(script: "yarn deploy:create-version ${BRANCH_NAME}")
     }
-    startPackagesDeployments(packagesToDeploy);
+    startPackagesDeployments(packagesToDeploy)
   } else {
     echo "Nothing to deploy."
   }
