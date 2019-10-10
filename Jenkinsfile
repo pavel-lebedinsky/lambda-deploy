@@ -2,21 +2,28 @@ pipeline {
   agent any
   tools {nodejs "nodejs-10"}
   parameters {
-    string(name: 'ACTION', defaultValue:'', description: 'Deployment strategy. Supported values: "test", "deploy", "force deploy"')
+    string(name: 'ACTION', defaultValue:'', description: 'Deployment strategy. Supported values: "deploy", "force deploy"')
     string(name: 'DEPLOYABLE_NAMES', defaultValue:'', description: 'Space separated package names of units to deploy.')
     string(name: 'PATH_TO_DEPLOY', defaultValue:'', description: 'FOR_INTERNAL_USAGE')
   }
   stages {
-    stage("Unit tests") {
-      when { environment name: 'ACTION', value: 'test' }
+    stage("Checkout branch") {
       steps {
-        sh "yarn build"
-        sh "yarn test"
+        sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
+        sh "git config --local user.name \"jenkins\""
+        sh "git checkout ${BRANCH_NAME}"
+        sh "git reset --hard origin/${BRANCH_NAME}"
+        sh "git fetch --prune origin \"+refs/tags/*:refs/tags/*\""
+        sh "git pull --rebase"
+        sh "git fetch --tags"
+        script {
+          env.APP_ENV = getAppEnv(env.BRANCH_NAME);
+        }
       }
     }
 
     stage("Discover Targets") {
-      when { 
+      when {
         allOf {
           not { environment name: 'DEPLOYABLE_NAMES', value: '' }
           anyOf {
@@ -26,30 +33,14 @@ pipeline {
         }
       }
       steps {
-        sh "git config --local user.email \"paul.lebedinsky@gmail.com\""
-        sh "git config --local user.name \"jenkins\""
-        sh "git checkout master"
-        sh "git pull --rebase"
-        sh "git reset --hard origin/master"
-        sh "git fetch --prune origin \"+refs/tags/*:refs/tags/*\""
-        sh "git fetch --tags"
         sh "yarn build"
         script {
-          def packagesToDeploy = discoverTargets(env.ACTION, env.DEPLOYABLE_NAMES)
-          if (packagesToDeploy) {
-            echo "Deploying: \n${packagesToDeploy}"
-            if (env.BRANCH_NAME == "master") {
-              echo "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM"
-            }
-            startPackagesDeployments(packagesToDeploy);
-          } else {
-            echo "Nothing to deploy."
-          }
+          discoverDeploymentTargetsAndDeploy(env.ACTION, env.DEPLOYABLE_NAMES)
         }
       }
     }
 
-    stage("Deploy to dev") {
+    stage("Deploy") {
       when {
         allOf {
           branch 'dev'
@@ -62,56 +53,24 @@ pipeline {
       }
       steps {
         script {
-          setBuildName(env.PATH_TO_DEPLOY)
+          currentBuild.displayName = getBuildName(env.PATH_TO_DEPLOY)
         }
-        sh '''
-          export TEST_VAR=test-val
-          yarn run deploy ${PATH_TO_DEPLOY}
-        ''';
-      }
-    }
-
-    stage("Deploy to qa") {
-      when {
-        allOf {
-          branch 'qa'
-          not { environment name: 'PATH_TO_DEPLOY', value: '' }
-          anyOf {
-            environment name: 'ACTION', value: 'deploy'
-            environment name: 'ACTION', value: 'force deploy'
-          }
+        withCredentials([
+          string(credentialsId: 'AWS_REGION', variable: 'AWS_REGION'),
+          [
+            $class: 'AmazonWebServicesCredentialsBinding',
+            accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+            credentialsId: "${buildConfigs[BRANCH_NAME].awsCredentialsId}",
+            secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+          ]
+        ]) {
+          sh '''
+            yarn build
+            export TEST_VAR=test-val
+            export APP_ENV=${buildConfigs[BRANCH_NAME].appEnv}
+            yarn deploy ${PATH_TO_DEPLOY}
+          ''';
         }
-      }
-      steps {
-        script {
-          setBuildName(env.PATH_TO_DEPLOY)
-        }
-        sh '''
-          export TEST_VAR=test-val
-          yarn run deploy ${PATH_TO_DEPLOY}
-        ''';
-      }
-    }
-
-    stage("Deploy to prod") {
-      when {
-        allOf {
-          branch 'master'
-          not { environment name: 'PATH_TO_DEPLOY', value: '' }
-          anyOf {
-            environment name: 'ACTION', value: 'deploy'
-            environment name: 'ACTION', value: 'force deploy'
-          }
-        }
-      }
-      steps {
-        script {
-          setBuildName(env.PATH_TO_DEPLOY)
-        }
-        sh '''
-          export TEST_VAR=test-val
-          yarn run deploy ${PATH_TO_DEPLOY}
-        ''';
       }
     }
 
@@ -123,15 +82,35 @@ pipeline {
   }
 }
 
-def discoverTargets(action, deployables = "") {
-  return sh(
-    script: "yarn run --silent deploy:discover -f ${action == 'force deploy'} -p ${deployables}",
-    returnStdout: true
-  );
-}
+buildConfigs = [
+  dev: [
+    awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
+    appEnv: "dev"
+  ],
+  qa: [
+    awsCredentialsId: "jenkins-fbcd-dcgvideo-devqa",
+    appEnv: "qa"
+  ],
+  master: [
+    awsCredentialsId: "jenkins-fbcd-dcgvideo-stage",
+    appEnv: "prod"
+  ]
+];
 
-def getDeploymentName(packagePath) {
-  return sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true);
+def discoverDeploymentTargetsAndDeploy(action, deployables = '') {
+  def packagesToDeploy = sh(
+    script: "yarn --silent deploy:discover -f ${action == 'force deploy'} -p ${deployables}",
+    returnStdout: true
+  )
+  if (packagesToDeploy) {
+    echo "Deploying: \n${packagesToDeploy}"
+    if (env.BRANCH_NAME == "master") {
+      // sh(script: "yarn deploy:create-version ${BRANCH_NAME}")
+    }
+    startPackagesDeployments(packagesToDeploy);
+  } else {
+    echo "Nothing to deploy."
+  }
 }
 
 def startPackagesDeployments(packagesToDeploy) {
@@ -157,7 +136,7 @@ def startPackagesDeployments(packagesToDeploy) {
   return results;
 }
 
-def setBuildName(packagePath) {
-  def buildName = sh(script: "yarn run --silent deploy:get-deployment-name ${packagePath}", returnStdout: true).trim();
-  currentBuild.displayName = "#${buildName}-${env.GIT_COMMIT.substring(0,5)}"
+def getBuildName(packagePath) {
+  def buildName = sh(script: "yarn --silent deploy:get-deployment-name ${packagePath}", returnStdout: true).trim();
+  return "#${buildName}-${env.GIT_COMMIT.substring(0,5)}"
 }
