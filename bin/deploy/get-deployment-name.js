@@ -1,10 +1,14 @@
-const fs = require('fs');
+const { execPromise } = require('./utils');
 
-try {
-  const packageJson = JSON.parse(fs.readFileSync(`${process.cwd()}/${process.argv[2]}/package.json`).toString());
-  const { deploy, version } = packageJson;
-  console.log(`${deploy.serviceName}-${version}`);
-} catch (err) {
-  console.error(err.message);
-  process.exit(1);
+async function main() {
+  try {
+    const output = await execPromise(`lerna list -a --json --scope=${process.argv[2]}`);
+    const { name, version } = JSON.parse(output)[0];
+    console.log(`${name}_${version}`);
+  } catch (err) {
+    console.error(`Can not find package "${process.argv[2]}"`);
+    process.exit(1);
+  }
 }
+
+main().catch(console.error);
