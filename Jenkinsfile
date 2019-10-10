@@ -16,9 +16,6 @@ pipeline {
         sh "git fetch --prune origin \"+refs/tags/*:refs/tags/*\""
         sh "git pull --rebase"
         sh "git fetch --tags"
-        script {
-          env.APP_ENV = getAppEnv(env.BRANCH_NAME);
-        }
       }
     }
 

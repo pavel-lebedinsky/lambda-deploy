@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const { execPromise } = require('./utils');
 
 const argv = require('yargs')
@@ -47,7 +46,6 @@ async function getChangedPackages() {
   } catch (err) {
     console.warn('No changes detected.');
   }
-  console.error(result);
   return result;
 }
 

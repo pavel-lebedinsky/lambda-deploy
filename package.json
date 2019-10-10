@@ -9,6 +9,7 @@
     "_deploy": "yarn build:deploy && node bin/deploy",
     "deploy": "node bin/deploy/do-deploy",
     "deploy:discover": "node bin/deploy/discover",
+    "deploy:create-version": "node bin/deploy/create-version",
     "deploy:get-deployment-name": "node bin/deploy/get-deployment-name",
     "test": "APP_ENV=local NODE_ENV=test jest"
   },
